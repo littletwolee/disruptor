@@ -51,6 +51,13 @@ type _cursor struct {
 func (c *_cursor) rCursor() int64 {
 	return atomic.LoadInt64(c.r)
 }
+func (c *_cursor) rNext() int64 {
+	next := c.rCursor() + 1
+	if next >= c.e {
+		return c.s
+	}
+	return next
+}
 func (c *_cursor) rCursorCompleted() {
 	if !atomic.CompareAndSwapInt64(c.r, c.e-1, c.s) {
 		atomic.AddInt64(c.r, 1)
@@ -66,16 +73,16 @@ func (c *_cursor) wCursorCompleted() {
 }
 func (c *_cursor) read() bool {
 	r, w := atomic.LoadInt64(c.r), atomic.LoadInt64(c.w)
-	return (r <= w && w < c.e) || (w < r && r < c.e)
+	return (w <= r && r < c.e-1) || (c.s < w && r == c.e-1) || (r < w && w < c.e)
 }
 func (c *_cursor) write() bool {
 	r, w := atomic.LoadInt64(c.r), atomic.LoadInt64(c.w)
-	return (r < w && w < c.e) || (w < r && r < c.e)
+	return (r < w && w < c.e-1) || (c.s < r && w == c.e-1) || (w < r && r < c.e)
 }
 func (c *_cursor) len() int64 {
 	r, w := atomic.LoadInt64(c.r), atomic.LoadInt64(c.w)
-	if r <= w {
-		return w - r
+	if r < w {
+		return w - r - 1
 	}
-	return c.e - r + w - c.s
+	return c.e - r + w - c.s - 2
 }
