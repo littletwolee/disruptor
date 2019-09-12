@@ -37,6 +37,7 @@ func newCursors(chunk int, bufLen int64) *cursors {
 }
 func (cs *cursors) get() *_cursor {
 	i := atomic.AddInt64(cs.index, 1)
+	atomic.CompareAndSwapInt64(cs.index, 100000000, 0)
 	return cs.cs[i%cs.chunk]
 }
 func (cs *cursors) len() int64 {
@@ -72,12 +73,12 @@ func (c *_cursor) wCursorCompleted() {
 	}
 }
 func (c *_cursor) read() bool {
-	r, w := atomic.LoadInt64(c.r), atomic.LoadInt64(c.w)
-	return (w <= r && r < c.e-1) || (c.s < w && r == c.e-1) || (r < w && w < c.e)
+	r, w := c.rCursor(), c.wCursor()
+	return (w <= r && r < c.e) || (r <= w && w < c.e)
 }
 func (c *_cursor) write() bool {
-	r, w := atomic.LoadInt64(c.r), atomic.LoadInt64(c.w)
-	return (r < w && w < c.e-1) || (c.s < r && w == c.e-1) || (w < r && r < c.e)
+	r, w := c.rCursor(), c.wCursor()
+	return (r < w && w < c.e) || (w < r && r < c.e)
 }
 func (c *_cursor) len() int64 {
 	r, w := atomic.LoadInt64(c.r), atomic.LoadInt64(c.w)
